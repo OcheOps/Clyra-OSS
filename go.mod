@@ -15,7 +15,7 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/joho/godotenv v1.5.1
-	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/redis/go-redis/v9 v9.18.0
 	golang.org/x/crypto v0.52.0
 	gopkg.in/yaml.v3 v3.0.1
