@@ -127,7 +127,7 @@ export function EmptyCanvasPrompt({ onProjectRename, onOpenReverse }: Props) {
         abortRef.current = null;
       }
     },
-    [loading, onProjectRename, setLastPrompt],
+    [loading, onProjectRename, setLastPrompt, getKey],
   );
 
   if (dismissed) return null;
