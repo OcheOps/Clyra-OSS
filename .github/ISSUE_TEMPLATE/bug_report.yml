@@ -1,0 +1,85 @@
+name: Bug report
+description: Something's not working as it should.
+title: "[bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Fill in what you can —
+        anything that reproduces the issue is useful.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what actually happened?
+      placeholder: |
+        - I pasted a Terraform file
+        - Expected: a diagram
+        - Actual: 500 error, backend log says ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: |
+        Smallest input + sequence of clicks that triggers it. If the issue
+        involves a Terraform file or prompt, paste the exact text.
+      placeholder: |
+        1. Start the server locally with …
+        2. Open http://localhost:3000/editor
+        3. Click …
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Clyra version / commit
+      description: Output of `git rev-parse HEAD`, or the release tag.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which component?
+      multiple: true
+      options:
+        - Backend (Go server)
+        - Frontend (SPA)
+        - Editor / React Flow
+        - IaC render (Terraform / CloudFormation)
+        - Reverse ingestion (HCL parser)
+        - MCP endpoint
+        - LLM provider adapter
+        - Cost estimator
+        - Architecture rules
+        - Docker / self-hosting
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        OS, Go version, Node version, browser, whether you're running from
+        Docker or `go run`, which LLM provider you tried.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Server logs, browser console, or network tab output.
+      render: shell
+    validations:
+      required: false

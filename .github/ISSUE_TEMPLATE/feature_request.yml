@@ -1,0 +1,56 @@
+name: Feature request
+description: Suggest an idea or improvement.
+title: "[feat]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, check if there's already an issue for this. If a
+        similar one exists, thumbs-up it and add context instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Explain the user pain, not the specific implementation.
+      placeholder: |
+        When I'm reviewing a 200-node architecture, I lose track of which
+        services connect to RDS. I'd like …
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Clyra to do?
+      description: Rough shape of the change. Screenshots or mock-ups welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What else have you considered?
+      description: Workarounds, other tools, or alternative designs.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Where would this live?
+      options:
+        - Editor UX
+        - New component in the catalog
+        - New architecture rule
+        - New cost catalog entry
+        - IaC generation
+        - Reverse ingestion
+        - MCP tool
+        - Backend API
+        - Self-hosting / deployment
+        - Docs
+        - Other
+    validations:
+      required: true

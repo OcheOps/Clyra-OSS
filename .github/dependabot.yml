@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      aws-sdk:
+        patterns: ["github.com/aws/aws-sdk-go-v2*"]
+      go-chi:
+        patterns: ["github.com/go-chi/*"]
+      otel:
+        patterns: ["go.opentelemetry.io/*"]
+
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react*", "react-router*"]
+      vite:
+        patterns: ["vite", "@vitejs/*"]
+      remotion:
+        patterns: ["remotion", "@remotion/*"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

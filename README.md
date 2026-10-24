@@ -1,6 +1,16 @@
 # Clyra
 
+[![CI](https://github.com/OcheOps/Clyra-OSS/actions/workflows/ci.yml/badge.svg)](https://github.com/OcheOps/Clyra-OSS/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/go-1.25-00ADD8?logo=go&logoColor=white)](go.mod)
+[![React](https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=white)](web/package.json)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 **Prompt → editable cloud architecture diagram → deployable Terraform.**
+
+> **Watch the 40-second overview** — see
+> [v0.1.0 release](https://github.com/OcheOps/Clyra-OSS/releases/tag/v0.1.0)
+> for `brag-v2.mp4`.
 
 Clyra turns a one-line description of a system into an editable
 multi-cloud architecture diagram with cost estimates, Well-Architected

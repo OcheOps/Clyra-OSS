@@ -1,0 +1,27 @@
+name: Question / support
+description: Ask about using Clyra, self-hosting, or configuring it.
+title: "[q]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For open-ended discussion (which cloud to pick, architecture
+        advice, etc.), prefer
+        [GitHub Discussions](https://github.com/OcheOps/Clyra-OSS/discussions)
+        — issues are for concrete, actionable things.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Docs you read, settings you changed, errors you hit.
+    validations:
+      required: false
