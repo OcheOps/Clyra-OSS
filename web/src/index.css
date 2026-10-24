@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Default body is dark (editor canvas). Other signed-in pages and the
+     marketing/auth surfaces flip to paper via `usePaperTheme()`. */
+  body {
+    @apply bg-clyra-bg text-ink-primary antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  body.paper {
+    @apply bg-paper text-charcoal-soft;
+  }
+
+  ::selection {
+    @apply bg-brand-600/30 text-ink-primary;
+  }
+  body.paper ::selection {
+    @apply bg-teal-500/20 text-charcoal;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-1 ring-brand-500/50 ring-offset-1 ring-offset-clyra-bg;
+  }
+  body.paper :focus-visible {
+    @apply ring-teal-500/40 ring-offset-paper;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-line-strong/50 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-line-accent; }
+  body.paper ::-webkit-scrollbar-thumb { @apply bg-stone-strong/40; }
+  body.paper ::-webkit-scrollbar-thumb:hover { @apply bg-stone-strong/80; }
+
+  * { scrollbar-width: thin; scrollbar-color: theme('colors.line.strong') transparent; }
+  body.paper * { scrollbar-color: theme('colors.stone.strong') transparent; }
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   Token remap: when body has .paper, re-paint the dark-theme tokens
+   so existing app pages automatically render on paper surfaces
+   without touching every JSX file. Transparency modifiers (e.g.
+   bg-clyra-raised/60) are intentionally caught too.
+   ─────────────────────────────────────────────────────────────────── */
+@layer base {
+  body.paper .bg-clyra-bg,
+  body.paper .bg-clyra-bg\/80,
+  body.paper .bg-clyra-bg\/50 {
+    background-color: theme('colors.paper.DEFAULT');
+  }
+  body.paper .bg-clyra-base,
+  body.paper .bg-clyra-base\/95,
+  body.paper .bg-clyra-base\/90,
+  body.paper .bg-clyra-base\/80,
+  body.paper .bg-clyra-base\/60,
+  body.paper .bg-clyra-base\/50 {
+    background-color: theme('colors.paper.soft');
+  }
+  body.paper .bg-clyra-raised,
+  body.paper .bg-clyra-raised\/95,
+  body.paper .bg-clyra-raised\/90,
+  body.paper .bg-clyra-raised\/80,
+  body.paper .bg-clyra-raised\/70,
+  body.paper .bg-clyra-raised\/60,
+  body.paper .bg-clyra-raised\/50 {
+    background-color: theme('colors.paper.raised');
+  }
+  body.paper .bg-clyra-elevated,
+  body.paper .bg-clyra-elevated\/95,
+  body.paper .bg-clyra-elevated\/90,
+  body.paper .bg-clyra-elevated\/80,
+  body.paper .bg-clyra-elevated\/60 {
+    background-color: theme('colors.paper.raised');
+  }
+  body.paper .bg-clyra-overlay,
+  body.paper .bg-clyra-overlay\/60,
+  body.paper .bg-clyra-overlay\/50 {
+    background-color: theme('colors.paper.sunken');
+  }
+
+  body.paper .border-line-subtle { border-color: theme('colors.stone.subtle'); }
+  body.paper .border-line-default { border-color: theme('colors.stone.default'); }
+  body.paper .border-line-strong { border-color: theme('colors.stone.strong'); }
+  body.paper .border-line-accent { border-color: theme('colors.stone.strong'); }
+
+  body.paper .text-ink-primary { color: theme('colors.charcoal.DEFAULT'); }
+  body.paper .text-ink-secondary { color: theme('colors.charcoal.soft'); }
+  body.paper .text-ink-muted { color: theme('colors.charcoal.muted'); }
+  body.paper .text-ink-faint { color: theme('colors.charcoal.faint'); }
+
+  body.paper .text-brand-300,
+  body.paper .text-brand-400,
+  body.paper .text-brand-500 { color: theme('colors.teal.600'); }
+  body.paper .text-brand-600,
+  body.paper .text-brand-700 { color: theme('colors.teal.700'); }
+  body.paper .bg-brand-500\/10,
+  body.paper .bg-brand-500\/15,
+  body.paper .bg-brand-500\/20 { background-color: theme('colors.teal.50'); }
+  body.paper .bg-brand-600,
+  body.paper .bg-brand-500 { background-color: theme('colors.charcoal.DEFAULT'); color: theme('colors.paper.DEFAULT'); }
+  body.paper .border-brand-500\/30,
+  body.paper .border-brand-500\/40,
+  body.paper .border-brand-500\/50 { border-color: theme('colors.teal.500' / 40%); }
+
+  /* The default shadow was tuned for dark; soften on paper. */
+  body.paper .shadow-clyra,
+  body.paper .shadow-clyra-sm,
+  body.paper .shadow-clyra-lg,
+  body.paper .shadow-clyra-glow {
+    box-shadow: 0 2px 6px rgba(18, 19, 22, 0.05), 0 0 0 1px rgba(18, 19, 22, 0.04);
+  }
+}
+
+@layer components {
+  .surface-base     { @apply bg-clyra-base; }
+  .surface-raised   { @apply bg-clyra-raised; }
+  .surface-elevated { @apply bg-clyra-elevated; }
+}
+
+/* Node reveal animation. Applied to every React Flow node on mount so
+ * that a freshly generated diagram paints in node-by-node instead of
+ * popping in. `revealDiagram` already staggers insertion; this just
+ * softens each arrival. Fast (180ms) and small (6px rise) by design —
+ * a calm reveal, not a flourish. */
+/* React Flow sets each node's position via inline `transform`, so we
+ * only animate opacity here — animating `transform` would fight with
+ * the library's translate(x, y). */
+@keyframes clyra-node-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.react-flow__node {
+  animation: clyra-node-in 180ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__node { animation: none; }
+}

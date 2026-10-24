@@ -1,0 +1,14 @@
+{
+  "nodes": [
+    {"id": "vpc", "type": "aws_vpc", "label": "App VPC"},
+    {"id": "alb", "type": "aws_alb", "label": "App Load Balancer"},
+    {"id": "service", "type": "aws_ecs_service", "label": "Next.js"},
+    {"id": "db", "type": "aws_rds_instance", "label": "Postgres"},
+    {"id": "cdn", "type": "aws_cloudfront_distribution", "label": "CloudFront"}
+  ],
+  "edges": [
+    {"from": "cdn", "to": "alb", "label": "HTTPS"},
+    {"from": "alb", "to": "service", "label": "HTTP 3000"},
+    {"from": "service", "to": "db", "label": "Postgres 5432"}
+  ]
+}

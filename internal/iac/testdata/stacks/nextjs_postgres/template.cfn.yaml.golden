@@ -1,0 +1,211 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Next.js on ECS Fargate behind ALB, with RDS Postgres and CloudFront.
+Resources:
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: alb
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref SgAlb
+      Subnets:
+        - !Ref SubnetPublicA
+        - !Ref SubnetPublicB
+      Type: application
+  Cdn:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases: []
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            Cookies:
+              Forward: all
+            QueryString: true
+          TargetOriginId: CdnOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        Enabled: true
+        Origins:
+          - CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+            DomainName: !GetAtt Alb.DNSName
+            Id: CdnOrigin
+        Restrictions:
+          GeoRestriction:
+            RestrictionType: none
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+  Db:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: "20"
+      DBInstanceClass: db.t4g.micro
+      DBName: app
+      DBSubnetGroupName: !Ref DbSubnets
+      Engine: postgres
+      ManageMasterUserPassword: true
+      MasterUsername: app
+      PubliclyAccessible: false
+      StorageEncrypted: true
+      VPCSecurityGroups:
+        - !Ref SgDb
+  DbSubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: db_subnets
+      SubnetIds:
+        - !Ref SubnetPublicA
+        - !Ref SubnetPublicB
+  Ecs:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: ecs
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+        - CertificateArn: arn:aws:acm:us-east-1:123456789012:certificate/replace-me
+      DefaultActions:
+        - TargetGroupArn: !Ref Tg
+          Type: forward
+      LoadBalancerArn: !Ref Alb
+      Port: 443
+      Protocol: HTTPS
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - Listener
+    Properties:
+      Cluster: !Ref Ecs
+      DesiredCount: 2
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: nextjs
+          ContainerPort: 3000
+          TargetGroupArn: !Ref Tg
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref SgService
+          Subnets:
+            - !Ref SubnetPublicA
+            - !Ref SubnetPublicB
+      ServiceName: service
+      TaskDefinition: !Ref Task
+  SgAlb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: sg_alb
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+      VpcId: !Ref Vpc
+  SgDb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: sg_db
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - FromPort: 5432
+          IpProtocol: tcp
+          SourceSecurityGroupId: !Ref SgService
+          ToPort: 5432
+      VpcId: !Ref Vpc
+  SgService:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: sg_service
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - FromPort: 3000
+          IpProtocol: tcp
+          SourceSecurityGroupId: !Ref SgAlb
+          ToPort: 3000
+      VpcId: !Ref Vpc
+  SubnetPublicA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: ""
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: subnet_public_a
+      VpcId: !Ref Vpc
+  SubnetPublicB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: ""
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: subnet_public_b
+      VpcId: !Ref Vpc
+  Task:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Image: public.ecr.aws/nginx/nginx:latest
+          Name: nextjs
+          PortMappings:
+            - ContainerPort: 3000
+              Protocol: tcp
+      Cpu: "256"
+      ExecutionRoleArn: arn:aws:iam::123456789012:role/ecsTaskExecutionRole
+      Family: nextjs
+      Memory: "512"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+  Tg:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: /
+      Name: tg
+      Port: 3000
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !Ref Vpc
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: vpc
+Outputs:
+  AlbDns:
+    Description: ALB public DNS.
+    Value: !GetAtt Alb.DNSName
+  DbHost:
+    Description: RDS endpoint.
+    Value: !GetAtt Db.Endpoint.Address

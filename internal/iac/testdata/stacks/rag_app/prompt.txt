@@ -1,0 +1,13 @@
+{
+  "nodes": [
+    {"id": "api", "type": "aws_apigatewayv2_api", "label": "API"},
+    {"id": "fn", "type": "aws_lambda_function", "label": "Retriever"},
+    {"id": "search", "type": "aws_opensearch_domain", "label": "OpenSearch"},
+    {"id": "bucket", "type": "aws_s3_bucket", "label": "Docs"}
+  ],
+  "edges": [
+    {"from": "api", "to": "fn", "label": "Invoke"},
+    {"from": "fn", "to": "search", "label": "Vector search"},
+    {"from": "fn", "to": "bucket", "label": "Read docs"}
+  ]
+}

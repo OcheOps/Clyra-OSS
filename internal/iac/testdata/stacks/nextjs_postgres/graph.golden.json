@@ -1,0 +1,202 @@
+{
+  "version": "1",
+  "cloud": "aws",
+  "region": "us-east-1",
+  "metadata": {
+    "stack_name": "nextjs_postgres",
+    "description": "Next.js on ECS Fargate behind ALB, with RDS Postgres and CloudFront.",
+    "starter_only": true
+  },
+  "parameters": [
+    {
+      "name": "db_password",
+      "type": "string",
+      "description": "Initial DB password (rotate after apply)."
+    }
+  ],
+  "resources": [
+    {
+      "id": "vpc",
+      "kind": "aws_vpc",
+      "props": {
+        "cidr_block": "10.0.0.0/16",
+        "enable_dns_hostnames": true
+      }
+    },
+    {
+      "id": "subnet_public_a",
+      "kind": "aws_subnet",
+      "props": {
+        "vpc": "vpc",
+        "cidr_block": "10.0.1.0/24",
+        "availability_zone": "us-east-1a",
+        "map_public_ip_on_launch": true
+      }
+    },
+    {
+      "id": "subnet_public_b",
+      "kind": "aws_subnet",
+      "props": {
+        "vpc": "vpc",
+        "cidr_block": "10.0.2.0/24",
+        "availability_zone": "us-east-1b",
+        "map_public_ip_on_launch": true
+      }
+    },
+    {
+      "id": "sg_alb",
+      "kind": "aws_security_group",
+      "props": {
+        "vpc": "vpc",
+        "ingress": [
+          {
+            "from_port": 443,
+            "to_port": 443,
+            "protocol": "tcp",
+            "cidr": "0.0.0.0/0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sg_service",
+      "kind": "aws_security_group",
+      "props": {
+        "vpc": "vpc",
+        "ingress_from_sg": [
+          {
+            "sg": "sg_alb",
+            "from_port": 3000,
+            "to_port": 3000,
+            "protocol": "tcp"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sg_db",
+      "kind": "aws_security_group",
+      "props": {
+        "vpc": "vpc",
+        "ingress_from_sg": [
+          {
+            "sg": "sg_service",
+            "from_port": 5432,
+            "to_port": 5432,
+            "protocol": "tcp"
+          }
+        ]
+      }
+    },
+    {
+      "id": "db_subnets",
+      "kind": "aws_rds_subnet_group",
+      "props": {
+        "subnets": ["subnet_public_a", "subnet_public_b"]
+      }
+    },
+    {
+      "id": "db",
+      "kind": "aws_rds_instance",
+      "props": {
+        "engine": "postgres",
+        "instance_class": "db.t4g.micro",
+        "allocated_storage": 20,
+        "db_name": "app",
+        "db_subnet_group": "db_subnets",
+        "vpc_security_groups": ["sg_db"],
+        "skip_final_snapshot": true,
+        "storage_encrypted": true
+      }
+    },
+    {
+      "id": "ecs",
+      "kind": "aws_ecs_cluster",
+      "props": {}
+    },
+    {
+      "id": "task",
+      "kind": "aws_ecs_task_definition",
+      "props": {
+        "family": "nextjs",
+        "cpu": "256",
+        "memory": "512",
+        "image": "public.ecr.aws/nginx/nginx:latest",
+        "container_name": "nextjs",
+        "container_port": 3000
+      }
+    },
+    {
+      "id": "tg",
+      "kind": "aws_target_group",
+      "props": {
+        "vpc": "vpc",
+        "port": 3000,
+        "protocol": "HTTP",
+        "target_type": "ip"
+      }
+    },
+    {
+      "id": "alb",
+      "kind": "aws_alb",
+      "props": {
+        "subnets": ["subnet_public_a", "subnet_public_b"],
+        "security_groups": ["sg_alb"]
+      }
+    },
+    {
+      "id": "listener",
+      "kind": "aws_listener",
+      "props": {
+        "load_balancer": "alb",
+        "port": 443,
+        "protocol": "HTTPS",
+        "target_group": "tg"
+      }
+    },
+    {
+      "id": "service",
+      "kind": "aws_ecs_service",
+      "props": {
+        "cluster": "ecs",
+        "task_definition": "task",
+        "desired_count": 2,
+        "launch_type": "FARGATE",
+        "subnets": ["subnet_public_a", "subnet_public_b"],
+        "security_groups": ["sg_service"],
+        "target_group": "tg",
+        "container_name": "nextjs",
+        "container_port": 3000,
+        "assign_public_ip": true
+      },
+      "depends_on": ["listener"]
+    },
+    {
+      "id": "cdn",
+      "kind": "aws_cloudfront_distribution",
+      "props": {
+        "origin_dns": "alb",
+        "aliases": []
+      }
+    }
+  ],
+  "edges": [
+    {"from": "cdn", "to": "alb", "relation": "routes_to"},
+    {"from": "alb", "to": "service", "relation": "routes_to"},
+    {"from": "service", "to": "db", "relation": "references"}
+  ],
+  "outputs": [
+    {
+      "name": "alb_dns",
+      "from": "alb",
+      "attr": "dns_name",
+      "description": "ALB public DNS."
+    },
+    {
+      "name": "db_host",
+      "from": "db",
+      "attr": "endpoint",
+      "description": "RDS endpoint."
+    }
+  ]
+}

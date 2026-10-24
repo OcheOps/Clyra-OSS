@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    {"id": "alb", "type": "aws_alb", "label": "ALB"},
+    {"id": "api", "type": "aws_ecs_service", "label": "Go API"},
+    {"id": "redis", "type": "aws_elasticache_cluster", "label": "Redis"}
+  ],
+  "edges": [
+    {"from": "alb", "to": "api", "label": "HTTP"},
+    {"from": "api", "to": "redis", "label": "Redis 6379"}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    {"id": "api", "type": "aws_apigatewayv2_api", "label": "HTTP API"},
+    {"id": "fn", "type": "aws_lambda_function", "label": "Lambda"},
+    {"id": "table", "type": "aws_dynamodb_table", "label": "DynamoDB"}
+  ],
+  "edges": [
+    {"from": "api", "to": "fn", "label": "Invoke"},
+    {"from": "fn", "to": "table", "label": "Read/Write"}
+  ]
+}

@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: RAG application with API Gateway, Lambda, OpenSearch, and S3.
+Resources:
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: rag-api
+      ProtocolType: HTTP
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: rag-app-documents
+  Fn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: 'exports.handler = async () => ({ statusCode: 200, body: ''ok'' });'
+      FunctionName: rag-app-handler
+      Handler: index.handler
+      MemorySize: 512
+      Role: arn:aws:iam::123456789012:role/lambda-basic-execution
+      Runtime: python3.12
+      Timeout: 30
+  Integration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref Api
+      IntegrationType: AWS_PROXY
+      IntegrationUri: ${aws_lambda_function.fn.invoke_arn}
+      PayloadFormatVersion: "2.0"
+  InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref Fn
+      Principal: apigateway.amazonaws.com
+  Logs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/rag-app-handler
+      RetentionInDays: 14
+  Route:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: POST /query
+      Target: integrations/${aws_apigatewayv2_integration.integration.id}
+  Search:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      ClusterConfig:
+        InstanceCount: 1
+        InstanceType: t3.small.search
+      DomainName: rag-search
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 20
+      EngineVersion: OpenSearch_2.11
+Outputs:
+  SearchArn:
+    Description: OpenSearch domain ARN.
+    Value: !GetAtt Search.Arn

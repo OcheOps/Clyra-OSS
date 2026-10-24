@@ -1,0 +1,162 @@
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-diagram}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-diagram}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-diagram}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Redis ───────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Clyra App ───────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # Coolify redeploys sent SIGTERM to the container and SIGKILL'd
+    # after Docker's 10s default. In-flight IaC generations (which
+    # can take 3+ min on Opus 4.8) were dying with 502 the moment we
+    # cherry-picked a fix. Give the server 2 minutes of graceful
+    # window — comfortably longer than the Go server's own 90s
+    # shutdown-context timeout so it always exits cleanly rather
+    # than being force-killed mid-response.
+    stop_grace_period: 120s
+    # Coolify typically terminates TLS upstream and forwards to the
+    # container on its internal port. Bind only the app port; Coolify
+    # decides the host-side mapping.
+    ports:
+      - "${SERVER_PORT:-8081}:8081"
+    environment:
+      # ── App ─────────────────────────────────────────────────
+      APP_ENV: ${APP_ENV:-production}
+
+      # ── Server ──────────────────────────────────────────────
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8081                           # container-internal, not host
+      SERVER_READ_TIMEOUT: ${SERVER_READ_TIMEOUT:-10s}
+      # WriteTimeout kills the response mid-stream after this window.
+      # IaC generation with the current managed model (Opus 4.8) can
+      # legitimately take 3+ minutes for a 25-node diagram. 120s was
+      # too aggressive — bumped to 360s so the LLM has room without
+      # sacrificing security (idle-timeout still protects against
+      # slow-loris on quiet connections).
+      SERVER_WRITE_TIMEOUT: ${SERVER_WRITE_TIMEOUT:-360s}
+      SERVER_IDLE_TIMEOUT: ${SERVER_IDLE_TIMEOUT:-60s}
+      SERVER_MAX_BODY_BYTES: ${SERVER_MAX_BODY_BYTES:-1048576}
+
+      # ── Database (uses the internal compose network hostname) ─
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-diagram}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-diagram}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}          # safe inside docker network; set "require" if DB is external
+      DB_MAX_CONNS: ${DB_MAX_CONNS:-25}
+
+      # ── Redis ───────────────────────────────────────────────
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+
+      # ── Session ─────────────────────────────────────────────
+      # SESSION_COOKIE_NAME is intentionally NOT overridden — the frontend
+      # derives the CSRF cookie name from this default. Don't change it
+      # without also updating web/src/services/api/client.ts.
+      SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_MAX_AGE: ${SESSION_MAX_AGE:-86400}
+      SESSION_SECURE: ${SESSION_SECURE:-true}
+      SESSION_HTTP_ONLY: ${SESSION_HTTP_ONLY:-true}
+      SESSION_SAME_SITE: ${SESSION_SAME_SITE:-lax}
+
+      # ── Admin bootstrap (REQUIRED in production) ────────────
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+
+      # ── Rate limit ──────────────────────────────────────────
+      RATE_LIMIT_RPM: ${RATE_LIMIT_RPM:-60}
+      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-10}
+
+      # ── CORS (must list actual frontend origins; no "*" in prod) ─
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      CORS_MAX_AGE: ${CORS_MAX_AGE:-300}
+
+      # ── Abuse / quota ───────────────────────────────────────
+      ABUSE_USER_RATE_PER_MINUTE: ${ABUSE_USER_RATE_PER_MINUTE:-5}
+      ABUSE_DAILY_LIMIT: ${ABUSE_DAILY_LIMIT:-30}
+      ABUSE_MAX_PROMPT_LENGTH: ${ABUSE_MAX_PROMPT_LENGTH:-2000}
+      ABUSE_MAX_TOKENS: ${ABUSE_MAX_TOKENS:-4096}
+      ABUSE_PROVIDER_TIMEOUT: ${ABUSE_PROVIDER_TIMEOUT:-120s}
+      ABUSE_MAX_NODES: ${ABUSE_MAX_NODES:-25}
+      ABUSE_CB_THRESHOLD: ${ABUSE_CB_THRESHOLD:-5}
+      ABUSE_CB_COOLDOWN: ${ABUSE_CB_COOLDOWN:-30s}
+
+      # ── Plan daily caps ─────────────────────────────────────
+      PLAN_FREE_DAILY: ${PLAN_FREE_DAILY:-10}
+      PLAN_PRO_DAILY: ${PLAN_PRO_DAILY:-200}
+      PLAN_BYO_DAILY: ${PLAN_BYO_DAILY:-1000}
+
+      # ── Pricing / geo ───────────────────────────────────────
+      PRICING_DEFAULT_REGION: ${PRICING_DEFAULT_REGION:-}
+
+      # ── Bedrock ─────────────────────────────────────────────
+      BEDROCK_ENABLED: ${BEDROCK_ENABLED:-false}
+      BEDROCK_REGION: ${BEDROCK_REGION:-us-east-1}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-anthropic.claude-sonnet-4-20250514-v1:0}
+      BEDROCK_PROFILE: ${BEDROCK_PROFILE:-}
+      BEDROCK_ACCESS_KEY_ID: ${BEDROCK_ACCESS_KEY_ID:-}
+      BEDROCK_SECRET_ACCESS_KEY: ${BEDROCK_SECRET_ACCESS_KEY:-}
+
+      # ── Email (Resend) ──────────────────────────────────────
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-admin@example.com}
+      RESEND_FROM_NAME: ${RESEND_FROM_NAME:-Oche from Clyra}
+      RESEND_APP_URL: ${RESEND_APP_URL:-https://useclyra.com}
+
+      # ── Paystack (empty = mock mode) ────────────────────────
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      PAYSTACK_PUBLIC_KEY: ${PAYSTACK_PUBLIC_KEY:-}
+      PAYSTACK_CALLBACK_URL: ${PAYSTACK_CALLBACK_URL:-}
+
+      # ── S3 / Garage cloud sync (empty bucket = DB fallback) ─
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      # S3_PUBLIC_BASE_URL intentionally unset: previews are proxied through
+      # the backend so the S3 endpoint can stay on a private network.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Busybox wget is present in the alpine base; use it instead of curl.
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  pgdata:

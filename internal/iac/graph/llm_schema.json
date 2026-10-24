@@ -1,0 +1,79 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "cloud", "region", "resources", "metadata"],
+  "properties": {
+    "version": { "type": "string", "enum": ["1"] },
+    "cloud": { "type": "string", "enum": ["aws"] },
+    "region": { "type": "string" },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "props": { "type": "object" },
+          "depends_on": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "tags": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "relation"],
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "relation": {
+            "type": "string",
+            "enum": ["attaches_to", "routes_to", "references", "security_group_ingress"]
+          }
+        }
+      }
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["string", "number", "bool"] },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "from", "attr"],
+        "properties": {
+          "name": { "type": "string" },
+          "from": { "type": "string" },
+          "attr": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["stack_name", "description", "starter_only"],
+      "properties": {
+        "stack_name": { "type": "string" },
+        "description": { "type": "string" },
+        "starter_only": { "type": "boolean" }
+      }
+    }
+  }
+}

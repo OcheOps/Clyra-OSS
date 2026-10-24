@@ -1,0 +1,222 @@
+# go_redis
+# Go API on ECS Fargate behind ALB with ElastiCache Redis.
+# Starter / scaffold code - review before applying to production.
+
+terraform {
+  required_version = ">= 1.6.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.70"
+    }
+  }
+}
+
+provider "aws" {
+  region                      = var.region
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+  skip_region_validation      = true
+}
+
+variable "region" {
+  description = "AWS region to deploy into."
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "db_password" {
+  description = "Initial DB password (rotate after apply)."
+  type        = string
+  sensitive   = true
+}
+
+resource "aws_ecs_cluster" "ecs" {
+  name = "ecs"
+}
+
+resource "aws_lb_listener" "listener" {
+  load_balancer_arn = aws_lb.alb.arn
+  port              = 443
+  protocol          = "HTTPS"
+  certificate_arn   = "arn:aws:acm:us-east-1:123456789012:certificate/replace-me"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.tg.arn
+  }
+}
+
+resource "aws_ecs_service" "api" {
+  name            = "api"
+  cluster         = aws_ecs_cluster.ecs.id
+  task_definition = aws_ecs_task_definition.task.arn
+  desired_count   = 2
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = [aws_subnet.subnet_a.id, aws_subnet.subnet_b.id]
+    security_groups  = [aws_security_group.sg_api.id]
+    assign_public_ip = true
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.tg.arn
+    container_name   = "go-api"
+    container_port   = 8080
+  }
+
+}
+
+resource "aws_lb" "alb" {
+  name               = "alb"
+  internal           = false
+  load_balancer_type = "application"
+  subnets            = [aws_subnet.subnet_a.id, aws_subnet.subnet_b.id]
+  security_groups    = [aws_security_group.sg_alb.id]
+}
+
+resource "aws_elasticache_cluster" "redis" {
+  cluster_id           = "redis"
+  engine               = "redis"
+  node_type            = "cache.t4g.micro"
+  num_cache_nodes      = 1
+  port                 = 6379
+  subnet_group_name    = aws_elasticache_subnet_group.redis_subnets.name
+  security_group_ids   = [aws_security_group.sg_redis.id]
+}
+
+resource "aws_elasticache_subnet_group" "redis_subnets" {
+  name       = "redis_subnets"
+  subnet_ids = [aws_subnet.subnet_a.id, aws_subnet.subnet_b.id]
+}
+
+resource "aws_security_group" "sg_alb" {
+  name   = "sg_alb"
+  vpc_id = aws_vpc.vpc.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "sg_api" {
+  name   = "sg_api"
+  vpc_id = aws_vpc.vpc.id
+
+
+  ingress {
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
+    security_groups = [aws_security_group.sg_alb.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "sg_redis" {
+  name   = "sg_redis"
+  vpc_id = aws_vpc.vpc.id
+
+
+  ingress {
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [aws_security_group.sg_api.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_subnet" "subnet_a" {
+  vpc_id                  = aws_vpc.vpc.id
+  cidr_block              = "10.1.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "subnet_a"
+  }
+}
+
+resource "aws_subnet" "subnet_b" {
+  vpc_id                  = aws_vpc.vpc.id
+  cidr_block              = "10.1.2.0/24"
+  availability_zone       = "us-east-1b"
+  map_public_ip_on_launch = true
+  tags = {
+    Name = "subnet_b"
+  }
+}
+
+resource "aws_ecs_task_definition" "task" {
+  family                   = "go-api"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "256"
+  memory                   = "512"
+  execution_role_arn       = "arn:aws:iam::123456789012:role/ecsTaskExecutionRole"
+  container_definitions    = jsonencode([
+    {
+      name         = "go-api"
+      image        = "public.ecr.aws/docker/library/golang:1.22"
+      essential    = true
+      portMappings = [
+        {
+          containerPort = 8080
+          hostPort      = 8080
+          protocol      = "tcp"
+        }
+      ]
+    }
+  ])
+}
+
+resource "aws_lb_target_group" "tg" {
+  name        = "tg"
+  port        = 8080
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = aws_vpc.vpc.id
+
+  health_check {
+    path = "/"
+  }
+}
+
+resource "aws_vpc" "vpc" {
+  cidr_block           = "10.1.0.0/16"
+  enable_dns_hostnames = true
+  tags = {
+    Name = "vpc"
+  }
+}
+
+output "alb_dns" {
+  description = "ALB public DNS."
+  value       = aws_lb.alb.dns_name
+}
+

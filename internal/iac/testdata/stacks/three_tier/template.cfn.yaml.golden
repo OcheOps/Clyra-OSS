@@ -1,0 +1,145 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Traditional three-tier stack with EC2 application hosts, ALB, and RDS.
+Resources:
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: alb
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref SgAlb
+      Subnets:
+        - !Ref SubnetA
+        - !Ref SubnetB
+      Type: application
+  Db:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: "20"
+      DBInstanceClass: db.t4g.micro
+      DBName: app
+      DBSubnetGroupName: !Ref DbSubnets
+      Engine: postgres
+      ManageMasterUserPassword: true
+      MasterUsername: app
+      PubliclyAccessible: false
+      StorageEncrypted: true
+      VPCSecurityGroups:
+        - !Ref SgDb
+  DbSubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: db_subnets
+      SubnetIds:
+        - !Ref SubnetA
+        - !Ref SubnetB
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+        - CertificateArn: arn:aws:acm:us-east-1:123456789012:certificate/replace-me
+      DefaultActions:
+        - TargetGroupArn: !Ref Tg
+          Type: forward
+      LoadBalancerArn: !Ref Alb
+      Port: 443
+      Protocol: HTTPS
+  SgAlb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: sg_alb
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+      VpcId: !Ref Vpc
+  SgDb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: sg_db
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - FromPort: 5432
+          IpProtocol: tcp
+          SourceSecurityGroupId: !Ref SgWeb
+          ToPort: 5432
+      VpcId: !Ref Vpc
+  SgWeb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: sg_web
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - FromPort: 80
+          IpProtocol: tcp
+          SourceSecurityGroupId: !Ref SgAlb
+          ToPort: 80
+      VpcId: !Ref Vpc
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: ""
+      CidrBlock: 10.2.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: subnet_a
+      VpcId: !Ref Vpc
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: ""
+      CidrBlock: 10.2.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: subnet_b
+      VpcId: !Ref Vpc
+  Tg:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: /
+      Name: tg
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref Vpc
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.2.0.0/16
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: vpc
+  Web:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - Listener
+    Properties:
+      ImageId: ami-1234567890abcdef0
+      InstanceType: t3.small
+      SecurityGroupIds:
+        - !Ref SgWeb
+      SubnetId: !Ref SubnetA
+Outputs:
+  AlbDns:
+    Description: ALB public DNS.
+    Value: !GetAtt Alb.DNSName
+  DbHost:
+    Description: RDS endpoint.
+    Value: !GetAtt Db.Endpoint.Address

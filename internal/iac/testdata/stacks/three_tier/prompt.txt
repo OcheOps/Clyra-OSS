@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    {"id": "alb", "type": "aws_alb", "label": "ALB"},
+    {"id": "web", "type": "aws_ec2_instance", "label": "Web Tier"},
+    {"id": "db", "type": "aws_rds_instance", "label": "RDS"}
+  ],
+  "edges": [
+    {"from": "alb", "to": "web", "label": "HTTP"},
+    {"from": "web", "to": "db", "label": "Postgres"}
+  ]
+}

@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Serverless API with API Gateway, Lambda, and DynamoDB.
+Resources:
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: lambda-http-api
+      ProtocolType: HTTP
+  Fn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        ZipFile: 'exports.handler = async () => ({ statusCode: 200, body: ''ok'' });'
+      FunctionName: lambda-dynamodb-handler
+      Handler: index.handler
+      MemorySize: 256
+      Role: arn:aws:iam::123456789012:role/lambda-basic-execution
+      Runtime: nodejs20.x
+      Timeout: 10
+  Integration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref Api
+      IntegrationType: AWS_PROXY
+      IntegrationUri: ${aws_lambda_function.fn.invoke_arn}
+      PayloadFormatVersion: "2.0"
+  InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref Fn
+      Principal: apigateway.amazonaws.com
+  Route:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: ANY /{proxy+}
+      Target: integrations/${aws_apigatewayv2_integration.integration.id}
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      TableName: lambda-dynamodb-table
+Outputs:
+  ApiEndpoint:
+    Description: HTTP API endpoint.
+    Value: !GetAtt Api.ApiEndpoint

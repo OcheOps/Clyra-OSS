@@ -1,0 +1,87 @@
+# lambda_dynamodb
+# Serverless API with API Gateway, Lambda, and DynamoDB.
+# Starter / scaffold code - review before applying to production.
+
+terraform {
+  required_version = ">= 1.6.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.70"
+    }
+  }
+}
+
+provider "aws" {
+  region                      = var.region
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+  skip_region_validation      = true
+}
+
+variable "region" {
+  description = "AWS region to deploy into."
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "db_password" {
+  description = "Initial DB password (rotate after apply)."
+  type        = string
+  sensitive   = true
+}
+
+resource "aws_lambda_function" "fn" {
+  function_name = "lambda-dynamodb-handler"
+  role          = "arn:aws:iam::123456789012:role/lambda-basic-execution"
+  runtime       = "nodejs20.x"
+  handler       = "index.handler"
+  filename      = "lambda.zip"
+  source_code_hash = filebase64sha256("lambda.zip")
+  timeout       = 10
+  memory_size   = 256
+}
+
+resource "aws_apigatewayv2_api" "api" {
+  name          = "lambda-http-api"
+  protocol_type = "HTTP"
+}
+
+resource "aws_apigatewayv2_integration" "integration" {
+  api_id                 = aws_apigatewayv2_api.api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = "${aws_lambda_function.fn.invoke_arn}"
+  payload_format_version = "2.0"
+}
+
+resource "aws_lambda_permission" "invoke_permission" {
+  statement_id  = "invoke_permission-allow"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.fn.function_name
+  principal     = "apigateway.amazonaws.com"
+
+}
+
+resource "aws_apigatewayv2_route" "route" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "ANY /{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.integration.id}"
+}
+
+resource "aws_dynamodb_table" "table" {
+  name         = "lambda-dynamodb-table"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
+
+  attribute {
+    name = "id"
+    type = "S"
+  }
+}
+
+output "api_endpoint" {
+  description = "HTTP API endpoint."
+  value       = aws_apigatewayv2_api.api.api_endpoint
+}
+

@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+web/node_modules/
+
+# Build output
+web/dist/
+/diagram
+
+# Environment
+.env
+.env.local
+.env.docker
+
+# IDE / tooling
+.idea/
+.vscode/
+.codex
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+tmp/
+
+# Claude
+.claude/
+
+# Docker
+pgdata/
+
+# TypeScript build info
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
+.tmp/

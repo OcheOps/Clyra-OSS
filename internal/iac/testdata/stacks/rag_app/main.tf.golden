@@ -1,0 +1,100 @@
+# rag_app
+# RAG application with API Gateway, Lambda, OpenSearch, and S3.
+# Starter / scaffold code - review before applying to production.
+
+terraform {
+  required_version = ">= 1.6.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.70"
+    }
+  }
+}
+
+provider "aws" {
+  region                      = var.region
+  skip_credentials_validation = true
+  skip_requesting_account_id  = true
+  skip_metadata_api_check     = true
+  skip_region_validation      = true
+}
+
+variable "region" {
+  description = "AWS region to deploy into."
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "db_password" {
+  description = "Initial DB password (rotate after apply)."
+  type        = string
+  sensitive   = true
+}
+
+resource "aws_s3_bucket" "bucket" {
+  bucket = "rag-app-documents"
+}
+
+resource "aws_lambda_function" "fn" {
+  function_name = "rag-app-handler"
+  role          = "arn:aws:iam::123456789012:role/lambda-basic-execution"
+  runtime       = "python3.12"
+  handler       = "index.handler"
+  filename      = "lambda.zip"
+  source_code_hash = filebase64sha256("lambda.zip")
+  timeout       = 30
+  memory_size   = 512
+}
+
+resource "aws_apigatewayv2_api" "api" {
+  name          = "rag-api"
+  protocol_type = "HTTP"
+}
+
+resource "aws_apigatewayv2_integration" "integration" {
+  api_id                 = aws_apigatewayv2_api.api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = "${aws_lambda_function.fn.invoke_arn}"
+  payload_format_version = "2.0"
+}
+
+resource "aws_lambda_permission" "invoke_permission" {
+  statement_id  = "invoke_permission-allow"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.fn.function_name
+  principal     = "apigateway.amazonaws.com"
+
+}
+
+resource "aws_cloudwatch_log_group" "logs" {
+  name              = "/aws/lambda/rag-app-handler"
+  retention_in_days = 14
+}
+
+resource "aws_apigatewayv2_route" "route" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "POST /query"
+  target    = "integrations/${aws_apigatewayv2_integration.integration.id}"
+}
+
+resource "aws_opensearch_domain" "search" {
+  domain_name    = "rag-search"
+  engine_version = "OpenSearch_2.11"
+
+  cluster_config {
+    instance_type  = "t3.small.search"
+    instance_count = 1
+  }
+
+  ebs_options {
+    ebs_enabled = true
+    volume_size = 20
+  }
+}
+
+output "search_arn" {
+  description = "OpenSearch domain ARN."
+  value       = aws_opensearch_domain.search.arn
+}
+

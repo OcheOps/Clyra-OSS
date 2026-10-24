@@ -1,0 +1,9 @@
+Clyra
+Copyright 2026 Oche David Oguche
+
+Licensed under the Apache License, Version 2.0 (the "License").
+See LICENSE for the full text.
+
+Originally developed as a hosted SaaS product at useclyra.com. The
+hosted product has been retired; this repository is the continuation
+of the codebase as a free, self-hostable open-source project.

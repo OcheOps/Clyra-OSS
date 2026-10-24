@@ -1,0 +1,25 @@
+{
+  "version": "1",
+  "cloud": "aws",
+  "region": "us-east-1",
+  "metadata": {
+    "stack_name": "lambda_dynamodb",
+    "description": "Serverless API with API Gateway, Lambda, and DynamoDB.",
+    "starter_only": true
+  },
+  "resources": [
+    {"id": "api", "kind": "aws_apigatewayv2_api", "props": {"name": "lambda-http-api", "protocol_type": "HTTP"}},
+    {"id": "fn", "kind": "aws_lambda_function", "props": {"function_name": "lambda-dynamodb-handler", "runtime": "nodejs20.x", "handler": "index.handler", "timeout": 10, "memory_size": 256}},
+    {"id": "integration", "kind": "aws_apigatewayv2_integration", "props": {"api_id": "api", "integration_type": "AWS_PROXY", "integration_uri": "${aws_lambda_function.fn.invoke_arn}", "payload_format_version": "2.0"}},
+    {"id": "route", "kind": "aws_apigatewayv2_route", "props": {"api_id": "api", "route_key": "ANY /{proxy+}", "target": "integrations/${aws_apigatewayv2_integration.integration.id}"}},
+    {"id": "invoke_permission", "kind": "aws_lambda_permission", "props": {"function_name": "fn", "principal": "apigateway.amazonaws.com"}},
+    {"id": "table", "kind": "aws_dynamodb_table", "props": {"name": "lambda-dynamodb-table", "hash_key": "id", "billing_mode": "PAY_PER_REQUEST", "attribute_type": "S"}}
+  ],
+  "edges": [
+    {"from": "api", "to": "fn", "relation": "routes_to"},
+    {"from": "fn", "to": "table", "relation": "references"}
+  ],
+  "outputs": [
+    {"name": "api_endpoint", "from": "api", "attr": "api_endpoint", "description": "HTTP API endpoint."}
+  ]
+}
